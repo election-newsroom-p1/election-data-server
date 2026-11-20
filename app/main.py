@@ -1,5 +1,8 @@
-from fastapi import FastAPI
-from .simulator import generate
+
+import asyncio
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from .simulator import generate, evolve, snapshot
+
 
 # FastAPI 서버 생성
 app = FastAPI(title="P1 Election Data Server")
@@ -25,3 +28,27 @@ def get_districts():
         "district_count": len(districts),
         "districts": districts
     }
+
+# 교육용 모의 개표 WebSocket
+@app.websocket("/ws/counting")
+async def stream_counting(websocket: WebSocket):
+    await websocket.accept()
+
+    seed = 20261111
+    step = 0
+    live_districts = generate(seed)
+
+    try:
+        while True:
+            if step > 0:
+                evolve(live_districts, seed, step)
+
+            data = snapshot(live_districts, step, seed)
+
+            await websocket.send_json(data)
+
+            step += 1
+            await asyncio.sleep(2)
+
+    except WebSocketDisconnect:
+        pass
